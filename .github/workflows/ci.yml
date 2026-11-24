@@ -32,6 +32,9 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Build the video helper
+        run: npm run helper
+
       - name: Type-check and build frontend
         run: npm run build
 
