@@ -1,0 +1,2 @@
+80b7820cbbe1c8f514667581a0994dd02eafc19eedbb9ff25a4c38fdc3cd218b  Reformat_1.0.0_aarch64.dmg
+cb89e550992c4ef60f2c48ed31e4bf3cb10aef4802ce502000fede2a38d82938  Reformat-1.0.0-macos-arm64.zip

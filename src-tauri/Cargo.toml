@@ -1,0 +1,24 @@
+[package]
+name = "reformat"
+version = "1.0.0"
+description = "Private document and media conversion workbench"
+authors = ["Reformat"]
+edition = "2021"
+
+[lib]
+name = "reformat_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+webp = "0.3"
+lopdf = "0.47"
+base64 = "0.22"
+chrono = { version = "0.4", features = ["serde"] }
+tempfile = "3"

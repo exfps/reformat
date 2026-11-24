@@ -1,0 +1,20 @@
+# Build output
+dist/
+src-tauri/target/
+src-tauri/gen/
+node_modules/
+
+# Local toolchain and environments
+.toolchain/
+.venv/
+.npm-cache/
+.pnpm-store/
+
+# Demo capture workspace
+artifacts/
+docs-raw/
+
+# System noise
+.DS_Store
+._*
+*.log
