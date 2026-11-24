@@ -50,16 +50,6 @@ jobs:
         run: npm run helper -- arm64
 
       - name: Build Apple Silicon app and DMG
-        env:
-          # Optional: add these repository secrets to ship a Developer ID
-          # signed and notarized build. Without them Tauri produces an
-          # ad-hoc signed build, which macOS Gatekeeper will warn about.
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npx tauri build --target aarch64-apple-darwin
 
       - name: Write checksums
