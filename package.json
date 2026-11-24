@@ -1,29 +1,34 @@
 {
   "name": "reformat",
-  "version": "1.0.0",
-  "description": "Reformat \u2014 a private, local-first document and media conversion workbench for macOS",
+  "version": "1.1.0",
+  "description": "A friendly, local-first file workbench for macOS \u2014 images, PDFs, GIFs, and archives",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "app:dev": "tauri dev",
-    "app:build": "tauri build",
+    "app:dev": "npm run helper && tauri dev",
+    "app:build": "npm run helper && tauri build",
     "test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "check": "npm run build && npm run test",
     "lint:rust": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
     "fmt:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml",
-    "icons": "node scripts/generate-icons.mjs"
+    "icons": "node scripts/generate-icons.mjs",
+    "helper": "bash scripts/build-video-helper.sh"
   },
   "keywords": [
-    "tauri",
-    "pdf",
+    "archives",
+    "conversion",
+    "desktop",
     "image-conversion",
     "local-first",
-    "privacy",
     "macos",
-    "desktop"
+    "pdf",
+    "pdf-export",
+    "privacy",
+    "tauri",
+    "video-to-gif"
   ],
   "author": "Reformat contributors",
   "license": "MIT",

@@ -3,14 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#111411" />
+    <meta name="theme-color" content="#f6f3ea" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <meta
       name="description"
       content="Reformat — a private, local-first document and media conversion workbench."
     />
-    <title>Reformat</title>
+    <title>Reformat — a calmer file workbench</title>
+    <script>
+      try {
+        const theme = JSON.parse(localStorage.getItem("reformat.theme.v2") || '"light"');
+        const density = JSON.parse(localStorage.getItem("reformat.density.v2") || '"comfortable"');
+        document.documentElement.dataset.theme = theme === "dark" ? "dark" : "light";
+        document.documentElement.dataset.density = density === "compact" ? "compact" : "comfortable";
+      } catch (_) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

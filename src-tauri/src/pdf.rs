@@ -96,6 +96,17 @@ pub struct ImagesToPdfRequest {
     pub margin: f32,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportDocumentRequest {
+    pub job_id: String,
+    pub input: String,
+    pub output_dir: Option<String>,
+    pub file_name: String,
+    pub format: String,
+    pub ranges: Option<String>,
+}
+
 pub fn pdf_info(path: String) -> Result<PdfInfo, String> {
     let parsed = validate_input_file(&path)?;
     let bytes = fs::metadata(&parsed).map(|m| m.len()).unwrap_or(0);
@@ -1159,6 +1170,196 @@ pub fn run_images_to_pdf(
     })
 }
 
+fn write_bytes_atomically(target: &Path, bytes: &[u8], token: &AtomicBool) -> Result<u64, String> {
+    check_cancel(token)?;
+    let dir = target
+        .parent()
+        .ok_or_else(|| "The output folder is invalid.".to_string())?;
+    let mut temp = TempBuilder::new()
+        .prefix(".reformat-")
+        .suffix(".part")
+        .tempfile_in(dir)
+        .map_err(|e| format!("Couldn't create a temporary file: {e}"))?;
+    temp.as_file_mut()
+        .write_all(bytes)
+        .map_err(|e| format!("Couldn't write the exported document: {e}"))?;
+    temp.as_file_mut()
+        .flush()
+        .map_err(|e| format!("Couldn't finish writing the exported document: {e}"))?;
+    check_cancel(token)?;
+    let persisted = temp
+        .persist_noclobber(target)
+        .map_err(|e| format!("Couldn't save {}: {}", target.display(), e.error))?;
+    Ok(persisted
+        .metadata()
+        .map_err(|e| format!("Couldn't inspect the saved document: {e}"))?
+        .len())
+}
+
+fn docx_for_pages(pages: &[(u32, String)]) -> Result<Vec<u8>, String> {
+    use docx_rs::{BreakType, Docx, Paragraph, Run};
+
+    let mut docx = Docx::new();
+    let mut has_content = false;
+    for (index, (_, text)) in pages.iter().enumerate() {
+        let cleaned = text.replace('\u{000c}', "\n\n");
+        let mut wrote_any = false;
+        for line in cleaned.lines() {
+            let line = line.trim_end();
+            if line.trim().is_empty() {
+                if wrote_any {
+                    docx = docx.add_paragraph(Paragraph::new());
+                }
+                continue;
+            }
+            if !wrote_any && index > 0 {
+                docx = docx
+                    .add_paragraph(Paragraph::new().add_run(Run::new().add_break(BreakType::Page)));
+            }
+            docx =
+                docx.add_paragraph(Paragraph::new().add_run(Run::new().add_text(line.to_string())));
+            wrote_any = true;
+            has_content = true;
+        }
+        if index > 0 && !wrote_any {
+            docx =
+                docx.add_paragraph(Paragraph::new().add_run(Run::new().add_break(BreakType::Page)));
+        }
+    }
+    if !has_content {
+        return Err("No selectable text was found in this PDF. It may be a scan or use fonts that can't be read; OCR is needed.".to_string());
+    }
+    let mut bytes = Vec::new();
+    let mut cursor = std::io::Cursor::new(&mut bytes);
+    docx.pack(&mut cursor)
+        .map_err(|e| format!("Couldn't prepare the Word document: {e}"))?;
+    Ok(bytes)
+}
+
+pub fn run_export_document(
+    app: Option<&AppHandle>,
+    token: std::sync::Arc<AtomicBool>,
+    request: ExportDocumentRequest,
+) -> Result<JobOutcome, String> {
+    let started = Instant::now();
+    let format = request.format.to_ascii_lowercase();
+    if format != "txt" && format != "docx" {
+        return Err("Choose text or Word as the export format.".to_string());
+    }
+    let doc = load_pdf(&request.input)?;
+    let page_count = doc.get_pages().len();
+    let page_numbers: Vec<u32> = match request.ranges.as_deref().filter(|r| !r.trim().is_empty()) {
+        Some(ranges) => parse_ranges(ranges, page_count)?
+            .into_iter()
+            .flat_map(|(start, end)| start..=end)
+            .collect(),
+        None => (1..=page_count as u32).collect(),
+    };
+    if page_numbers.is_empty() {
+        return Err("Choose at least one page to export.".to_string());
+    }
+    emit_progress(
+        app,
+        &request.job_id,
+        "pdf-export",
+        1,
+        0,
+        Some(display_name(&request.input)),
+        "running",
+    );
+    if cancelled(&token) {
+        return Ok(cancelled_job(
+            app,
+            &request.job_id,
+            "pdf-export",
+            1,
+            0,
+            vec![],
+            vec![],
+            started,
+        ));
+    }
+    let chunks = doc.extract_text_chunks_with_limit(&page_numbers, 64 * 1024 * 1024);
+    let pages: Vec<(u32, String)> = page_numbers
+        .iter()
+        .zip(chunks)
+        .map(|(page, chunk)| {
+            chunk
+                .map(|text| (*page, text))
+                .map_err(|_| format!("Text on page {page} couldn't be read."))
+        })
+        .collect::<Result<_, _>>()?;
+    if pages.iter().all(|(_, text)| text.trim().is_empty()) {
+        return Err("No selectable text was found. This looks like a scanned PDF, which needs OCR before exporting.".to_string());
+    }
+    if cancelled(&token) {
+        return Ok(cancelled_job(
+            app,
+            &request.job_id,
+            "pdf-export",
+            1,
+            0,
+            vec![],
+            vec![],
+            started,
+        ));
+    }
+    let source = Path::new(&request.input);
+    let source_stem = source
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "document".to_string());
+    let ext = if format == "docx" { "docx" } else { "txt" };
+    let requested_name = if request.file_name.trim().is_empty() {
+        format!("{source_stem}.{ext}")
+    } else {
+        request.file_name.clone()
+    };
+    let stem = sanitize_stem(&strip_known_extension(&requested_name), &source_stem);
+    let target = prepare_output_dir(source, request.output_dir.as_deref())
+        .map(|dir| unique_output_path(&dir, &stem, ext))?;
+    let bytes = if format == "txt" {
+        let content = pages
+            .iter()
+            .map(|(_, text)| text.trim_end())
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        write_bytes_atomically(&target, content.as_bytes(), &token)
+    } else {
+        let docx_bytes = docx_for_pages(&pages)?;
+        write_bytes_atomically(&target, &docx_bytes, &token)
+    };
+    let bytes = match bytes {
+        Ok(bytes) => bytes,
+        Err(error) if error == "Cancelled" => {
+            return Ok(cancelled_job(
+                app,
+                &request.job_id,
+                "pdf-export",
+                1,
+                0,
+                vec![],
+                vec![],
+                started,
+            ))
+        }
+        Err(error) => return Err(error),
+    };
+    emit_progress(app, &request.job_id, "pdf-export", 1, 1, None, "finished");
+    Ok(JobOutcome {
+        job_id: request.job_id,
+        outputs: vec![output_from(
+            &target,
+            &request.input,
+            bytes,
+            page_numbers.len(),
+        )],
+        errors: vec![],
+        cancelled: false,
+        elapsed_ms: started.elapsed().as_millis(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1355,6 +1556,183 @@ mod tests {
         assert_eq!(outcome.errors.len(), 1);
         let doc = Document::load(&outcome.outputs[0].path).unwrap();
         assert_eq!(doc.get_pages().len(), 1);
+    }
+
+    fn make_text_pdf(path: &Path, text: &str) {
+        let mut doc = Document::with_version("1.5");
+        let pages_id = doc.new_object_id();
+        let font_id = doc.add_object(Object::Dictionary({
+            let mut font = Dictionary::new();
+            font.set("Type", "Font");
+            font.set("Subtype", "Type1");
+            font.set("BaseFont", "Helvetica");
+            font
+        }));
+        let escaped = text
+            .replace('\\', "\\\\")
+            .replace('(', "\\(")
+            .replace(')', "\\)");
+        let content = format!("BT /F1 24 Tf 72 700 Td ({escaped}) Tj ET");
+        let content_id = doc.add_object(Object::Stream(Stream::new(
+            Dictionary::new(),
+            content.into_bytes(),
+        )));
+        let mut resources = Dictionary::new();
+        let mut fonts = Dictionary::new();
+        fonts.set("F1", Object::Reference(font_id));
+        resources.set("Font", Object::Dictionary(fonts));
+        let mut page = Dictionary::new();
+        page.set("Type", "Page");
+        page.set("Parent", Object::Reference(pages_id));
+        page.set(
+            "MediaBox",
+            Object::Array(vec![
+                Object::Integer(0),
+                Object::Integer(0),
+                Object::Integer(612),
+                Object::Integer(792),
+            ]),
+        );
+        page.set("Resources", Object::Dictionary(resources));
+        page.set("Contents", Object::Reference(content_id));
+        let page_id = doc.add_object(Object::Dictionary(page));
+        let mut pages = Dictionary::new();
+        pages.set("Type", "Pages");
+        pages.set("Kids", Object::Array(vec![Object::Reference(page_id)]));
+        pages.set("Count", 1_i64);
+        doc.set_object(pages_id, Object::Dictionary(pages));
+        let catalog_id = doc.new_object_id();
+        let mut catalog = Dictionary::new();
+        catalog.set("Type", "Catalog");
+        catalog.set("Pages", Object::Reference(pages_id));
+        doc.set_object(catalog_id, Object::Dictionary(catalog));
+        doc.trailer.set("Root", Object::Reference(catalog_id));
+        doc.save(path).unwrap();
+    }
+
+    fn make_multipage_text_pdf(path: &Path, texts: &[&str]) {
+        let mut doc = Document::with_version("1.5");
+        let pages_id = doc.new_object_id();
+        let font_id = doc.add_object(Object::Dictionary({
+            let mut font = Dictionary::new();
+            font.set("Type", "Font");
+            font.set("Subtype", "Type1");
+            font.set("BaseFont", "Helvetica");
+            font
+        }));
+        let mut page_ids = Vec::new();
+        for text in texts {
+            let escaped = text
+                .replace('\\', "\\\\")
+                .replace('(', "\\(")
+                .replace(')', "\\)");
+            let content = format!("BT /F1 24 Tf 72 700 Td ({escaped}) Tj ET");
+            let content_id = doc.add_object(Object::Stream(Stream::new(
+                Dictionary::new(),
+                content.into_bytes(),
+            )));
+            let mut resources = Dictionary::new();
+            let mut fonts = Dictionary::new();
+            fonts.set("F1", Object::Reference(font_id));
+            resources.set("Font", Object::Dictionary(fonts));
+            let mut page = Dictionary::new();
+            page.set("Type", "Page");
+            page.set("Parent", Object::Reference(pages_id));
+            page.set(
+                "MediaBox",
+                Object::Array(vec![
+                    Object::Integer(0),
+                    Object::Integer(0),
+                    Object::Integer(612),
+                    Object::Integer(792),
+                ]),
+            );
+            page.set("Resources", Object::Dictionary(resources));
+            page.set("Contents", Object::Reference(content_id));
+            page_ids.push(doc.add_object(Object::Dictionary(page)));
+        }
+        let mut pages = Dictionary::new();
+        pages.set("Type", "Pages");
+        pages.set(
+            "Kids",
+            Object::Array(page_ids.into_iter().map(Object::Reference).collect()),
+        );
+        pages.set("Count", texts.len() as i64);
+        doc.set_object(pages_id, Object::Dictionary(pages));
+        let catalog_id = doc.new_object_id();
+        let mut catalog = Dictionary::new();
+        catalog.set("Type", "Catalog");
+        catalog.set("Pages", Object::Reference(pages_id));
+        doc.set_object(catalog_id, Object::Dictionary(catalog));
+        doc.trailer.set("Root", Object::Reference(catalog_id));
+        doc.save(path).unwrap();
+    }
+
+    #[test]
+    fn exports_the_requested_pages_in_order() {
+        let dir = tempdir().unwrap();
+        let input = dir.path().join("pages.pdf");
+        make_multipage_text_pdf(
+            &input,
+            &["First page text", "Second page text", "Third page text"],
+        );
+        let outcome = run_export_document(
+            None,
+            Arc::new(AtomicBool::new(false)),
+            ExportDocumentRequest {
+                job_id: "pages".into(),
+                input: input.to_string_lossy().into_owned(),
+                output_dir: Some(dir.path().to_string_lossy().into_owned()),
+                file_name: "pages.txt".into(),
+                format: "txt".into(),
+                ranges: Some("3, 1".into()),
+            },
+        )
+        .unwrap();
+        let text = std::fs::read_to_string(&outcome.outputs[0].path).unwrap();
+        assert!(text.contains("Third page text"), "{text}");
+        assert!(text.contains("First page text"), "{text}");
+        assert!(!text.contains("Second page text"), "{text}");
+        let third = text.find("Third page text").unwrap();
+        let first = text.find("First page text").unwrap();
+        assert!(third < first, "{text}");
+    }
+
+    #[test]
+    fn exports_pdf_text_to_txt_and_docx() {
+        let dir = tempdir().unwrap();
+        let input = dir.path().join("speech.pdf");
+        make_text_pdf(&input, "Hello PDF readers");
+        for (format, extension) in [("txt", "txt"), ("docx", "docx")] {
+            let outcome = run_export_document(
+                None,
+                Arc::new(AtomicBool::new(false)),
+                ExportDocumentRequest {
+                    job_id: format!("export-{format}"),
+                    input: input.to_string_lossy().into_owned(),
+                    output_dir: Some(dir.path().to_string_lossy().into_owned()),
+                    file_name: format!("speech.{extension}"),
+                    format: format.into(),
+                    ranges: None,
+                },
+            )
+            .unwrap();
+            assert_eq!(outcome.outputs.len(), 1);
+            assert_eq!(outcome.outputs[0].name, format!("speech.{extension}"));
+            let output = Path::new(&outcome.outputs[0].path);
+            assert!(output.exists());
+            if format == "txt" {
+                let text = std::fs::read_to_string(output).unwrap();
+                assert!(text.contains("Hello PDF readers"), "{text}");
+            } else {
+                let file = std::fs::File::open(output).unwrap();
+                let mut archive = zip::ZipArchive::new(file).unwrap();
+                let mut document = archive.by_name("word/document.xml").unwrap();
+                let mut xml = String::new();
+                std::io::Read::read_to_string(&mut document, &mut xml).unwrap();
+                assert!(xml.contains("Hello PDF readers"), "{xml}");
+            }
+        }
     }
 
     #[test]

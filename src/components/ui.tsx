@@ -1,6 +1,8 @@
 import {
   ArrowUpRight,
   Check,
+  Clapperboard,
+  Archive,
   ChevronRight,
   FileText,
   Folder,
@@ -34,7 +36,7 @@ export function FileGlyph({ kind, size = 44 }: { kind: "image" | "pdf"; size?: n
 }
 
 interface DropZoneProps {
-  kind: "image" | "pdf";
+  kind: "image" | "pdf" | "video" | "archive";
   compact?: boolean;
   multiple?: boolean;
   disabled?: boolean;
@@ -53,13 +55,17 @@ export function DropZone({
   customSubtitle,
   grow = false,
 }: DropZoneProps) {
-  const title = customTitle ?? (kind === "image" ? "Drop images here" : "Drop a PDF here");
+  const title = customTitle ?? (kind === "image" ? "Drop images here" : kind === "video" ? "Drop a video here" : kind === "archive" ? "Drop an archive here" : "Drop a PDF here");
   const subtitle =
     customSubtitle ??
     (kind === "image"
       ? "JPG, PNG, or WebP. Batch as many as you like."
-      : "Merge, split, reorder, or clean up a document.");
-  const Icon = kind === "image" ? ImageIcon : FileText;
+      : kind === "video"
+        ? "MP4, MOV, or M4V. Pick the moment in the next step."
+        : kind === "archive"
+          ? "ZIP, 7Z, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, GZIP, BZIP2, XZ, or RAR."
+          : "Merge, split, reorder, export or clean up a document.");
+  const Icon = kind === "image" ? ImageIcon : kind === "video" ? Clapperboard : kind === "archive" ? Archive : FileText;
 
   if (compact) {
     return (
@@ -104,13 +110,17 @@ export function DropZone({
         <h3>{title}</h3>
         <p>{subtitle}</p>
         <span className="browse-pill">
-          Choose {kind === "image" ? "images" : "PDF"} <ChevronRight size={13} />
+          Choose {kind === "image" ? "images" : kind === "video" ? "a video" : kind === "archive" ? "an archive" : "a PDF"} <ChevronRight size={13} />
         </span>
         <div className="drop-types">
           {kind === "image" ? (
             <><span>JPG</span><span>PNG</span><span>WEBP</span></>
+          ) : kind === "video" ? (
+            <><span>MP4</span><span>MOV</span><span>M4V</span></>
+          ) : kind === "archive" ? (
+            <><span>ZIP</span><span>7Z</span><span>TAR.GZ</span></>
           ) : (
-            <><span>PDF</span><span>LOCAL</span><span>NO UPLOAD</span></>
+            <><span>PDF</span><span>DOCUMENTS</span><span>PAGES</span></>
           )}
         </div>
       </div>
@@ -236,7 +246,7 @@ export function BusyFooter({
   return (
     <div className="busy-footer" role="status">
       <div className="busy-top">
-        <span className="busy-label"><LoaderCircle size={14} className="spin" /> Working locally</span>
+        <span className="busy-label"><LoaderCircle size={14} className="spin" /> Working</span>
         <span className="busy-count">{completed} / {total}</span>
       </div>
       <div className="progress-track" aria-label="Progress">

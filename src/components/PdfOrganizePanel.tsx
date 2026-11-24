@@ -293,10 +293,9 @@ export function PdfOrganizePanel() {
         <div className="card inspector-card">
           <div className="inspector-head">
             <div>
-              <div className="eyebrow">EXPORT COPY</div>
-              <h2>Find the right <span>order.</span></h2>
+              <div className="eyebrow">OUTPUT</div>
+              <h2>Find the right order.</h2>
             </div>
-            <span className="recipe-number">03</span>
           </div>
           <div className="inspector-body">
             <DestinationPicker

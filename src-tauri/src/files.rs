@@ -51,7 +51,10 @@ pub fn render_template(template: &str, tokens: &[(&str, String)]) -> String {
 
 pub fn strip_known_extension(name: &str) -> String {
     let lower = name.to_ascii_lowercase();
-    for ext in [".jpeg", ".jpg", ".png", ".webp", ".pdf"] {
+    for ext in [
+        ".tar.bz2", ".tar.gz", ".tar.xz", ".jpeg", ".jpg", ".png", ".webp", ".pdf", ".zip", ".7z",
+        ".tar", ".tgz", ".tbz2", ".txz", ".gz", ".bz2", ".xz", ".rar", ".gif", ".docx", ".txt",
+    ] {
         if lower.ends_with(ext) {
             return name[..name.len() - ext.len()].to_string();
         }

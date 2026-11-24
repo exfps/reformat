@@ -1,12 +1,14 @@
-Reformat 1.0.0 — macOS (Apple Silicon)
+Reformat 1.1.0 — macOS (Apple Silicon)
 
-1. Open Reformat_1.0.0_aarch64.dmg.
-2. Drag Reformat to Applications.
-3. The build is ad-hoc signed but not notarized. On first launch,
-   Control-click the app and choose Open.
-4. If macOS still blocks the app:
-   xattr -dr com.apple.quarantine /Applications/Reformat.app
+1. Open Reformat_1.1.0_aarch64.dmg.
+2. Drag Reformat into Applications.
+3. The app is ad-hoc signed, not notarized. On first launch, Control-click
+   Reformat in Applications and choose Open.
 
-The ZIP contains the same app bundle if you prefer not to use the DMG.
+If macOS still blocks it after that, run:
 
-SHA-256 checksums are in SHA256SUMS.txt.
+  xattr -dr com.apple.quarantine /Applications/Reformat.app
+
+Requires macOS 11 or newer on Apple Silicon.
+
+No account. No upload. Your files are processed on this Mac.

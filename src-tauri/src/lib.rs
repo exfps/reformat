@@ -1,17 +1,25 @@
+mod archive;
 mod files;
 mod job;
 mod media;
 mod pdf;
+mod video;
 
 pub use job::{JobOutcome, JobRegistry};
 
+use archive::{
+    ArchiveInspection, ArchiveJobOutcome, ArchiveTestOutcome, ArchiveTestRequest, CreateRequest,
+    ExtractPlan, ExtractRequest, InspectRequest, PlanRequest,
+};
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use media::{ConvertRequest, ImageProbe};
 use pdf::{
-    CompressRequest, ImagesToPdfRequest, MergeRequest, PdfInfo, PdfPreview, ReorderRequest,
-    SplitRequest,
+    CompressRequest, ExportDocumentRequest, ImagesToPdfRequest, MergeRequest, PdfInfo, PdfPreview,
+    ReorderRequest, SplitRequest,
 };
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use tauri::{AppHandle, Manager, State};
+use video::{GifRequest, VideoProbe};
 
 fn panic_message() -> String {
     "Something unexpected happened while processing this file. The queue is still safe — try the file again or remove it.".to_string()
@@ -130,6 +138,122 @@ async fn images_to_pdf(
 }
 
 #[tauri::command]
+fn archive_inspect(request: InspectRequest) -> Result<ArchiveInspection, String> {
+    catch_unwind(AssertUnwindSafe(|| archive::archive_inspect(request)))
+        .unwrap_or_else(|_| Err(panic_message()))
+}
+
+#[tauri::command]
+fn plan_archive_extract(request: PlanRequest) -> Result<ExtractPlan, String> {
+    catch_unwind(AssertUnwindSafe(|| {
+        archive::plan_archive_extraction(request)
+    }))
+    .unwrap_or_else(|_| Err(panic_message()))
+}
+
+#[tauri::command]
+async fn create_archive(
+    app: AppHandle,
+    registry: State<'_, JobRegistry>,
+    request: CreateRequest,
+) -> Result<ArchiveJobOutcome, String> {
+    let job_id = request.job_id.clone();
+    let token = registry.start(&job_id);
+    let result =
+        blocking_job(move || archive::run_create_archive(Some(&app), token, request)).await;
+    registry.finish(&job_id);
+    result
+}
+
+#[tauri::command]
+async fn extract_archive(
+    app: AppHandle,
+    registry: State<'_, JobRegistry>,
+    request: ExtractRequest,
+) -> Result<ArchiveJobOutcome, String> {
+    let job_id = request.job_id.clone();
+    let token = registry.start(&job_id);
+    let result =
+        blocking_job(move || archive::run_extract_archive(Some(&app), token, request)).await;
+    registry.finish(&job_id);
+    result
+}
+
+#[tauri::command]
+async fn test_archive(
+    app: AppHandle,
+    registry: State<'_, JobRegistry>,
+    request: ArchiveTestRequest,
+) -> Result<ArchiveTestOutcome, String> {
+    let job_id = request.job_id.clone();
+    let token = registry.start(&job_id);
+    let result = blocking_job(move || archive::run_archive_test(Some(&app), token, request)).await;
+    registry.finish(&job_id);
+    result
+}
+
+#[tauri::command]
+fn probe_video(path: String) -> Result<VideoProbe, String> {
+    catch_unwind(AssertUnwindSafe(|| video::probe_video(path)))
+        .unwrap_or_else(|_| Err(panic_message()))
+}
+
+#[tauri::command]
+async fn create_gif(
+    app: AppHandle,
+    registry: State<'_, JobRegistry>,
+    request: GifRequest,
+) -> Result<JobOutcome, String> {
+    let job_id = request.job_id.clone();
+    let token = registry.start(&job_id);
+    let result = blocking_job(move || video::run_create_gif(Some(&app), token, request)).await;
+    registry.finish(&job_id);
+    result
+}
+
+#[tauri::command]
+async fn export_document(
+    app: AppHandle,
+    registry: State<'_, JobRegistry>,
+    request: ExportDocumentRequest,
+) -> Result<JobOutcome, String> {
+    let job_id = request.job_id.clone();
+    let token = registry.start(&job_id);
+    let result = blocking_job(move || pdf::run_export_document(Some(&app), token, request)).await;
+    registry.finish(&job_id);
+    result
+}
+
+#[tauri::command]
+fn read_output_preview(path: String) -> Result<String, String> {
+    let candidate = std::path::PathBuf::from(&path);
+    let metadata = std::fs::metadata(&candidate)
+        .map_err(|_| "That output file isn't on disk anymore.".to_string())?;
+    if !metadata.is_file() {
+        return Err("That output isn't a file.".to_string());
+    }
+    if metadata.len() > 40 * 1024 * 1024 {
+        return Err(
+            "This output is too large to preview here. Open it in Finder instead.".to_string(),
+        );
+    }
+    let extension = candidate
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    let mime = match extension.as_str() {
+        "gif" => "image/gif",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "webp" => "image/webp",
+        _ => return Err("This file type doesn't have an inline preview.".to_string()),
+    };
+    let bytes =
+        std::fs::read(&candidate).map_err(|e| format!("Couldn't read the output preview: {e}"))?;
+    Ok(format!("data:{mime};base64,{}", BASE64.encode(bytes)))
+}
+
+#[tauri::command]
 fn reveal_in_finder(path: String) -> Result<(), String> {
     let candidate = std::path::PathBuf::from(&path);
     if !candidate.exists() {
@@ -192,6 +316,15 @@ pub fn run() {
             reorder_pdf,
             compress_pdf,
             images_to_pdf,
+            export_document,
+            archive_inspect,
+            plan_archive_extract,
+            create_archive,
+            extract_archive,
+            test_archive,
+            probe_video,
+            create_gif,
+            read_output_preview,
             reveal_in_finder,
             app_version
         ])

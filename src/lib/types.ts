@@ -1,6 +1,7 @@
-export type View = "images" | "pdf" | "activity";
-export type PdfMode = "merge" | "split" | "organize" | "topdf" | "compress";
+export type View = "images" | "pdf" | "video" | "archives" | "activity";
+export type PdfMode = "merge" | "split" | "organize" | "topdf" | "export" | "compress";
 export type OutputFormat = "jpeg" | "png" | "webp";
+export type Theme = "light" | "dark";
 export type ResizeMode = "none" | "fit" | "cover" | "stretch";
 export type QueueStatus = "ready" | "running" | "done" | "error" | "cancelled";
 
@@ -143,4 +144,93 @@ export interface TrackedJobOptions<T> {
   total: number;
   view: View;
   execute: (jobId: string) => Promise<T>;
+}
+
+
+export interface VideoProbe {
+  path: string;
+  name: string;
+  bytes: number;
+  duration: number;
+  width: number;
+  height: number;
+  thumbnail: string;
+  supported: boolean;
+}
+
+export interface ArchiveEntryInfo {
+  path: string;
+  size: number;
+  compressedSize?: number | null;
+  isDir: boolean;
+  encrypted: boolean;
+  nested: boolean;
+  safe: boolean;
+}
+
+export interface ArchiveInspection {
+  path: string;
+  name: string;
+  bytes: number;
+  format: string;
+  formatLabel: string;
+  entries: ArchiveEntryInfo[];
+  fileCount: number;
+  dirCount: number;
+  totalSize: number;
+  ratio: number;
+  encrypted: boolean;
+  canCreate: boolean;
+  canPassword: boolean;
+  nestedCount: number;
+  truncated: boolean;
+  warnings: string[];
+}
+
+export interface ExtractConflict {
+  path: string;
+  kind: string;
+}
+
+export interface ExtractPlan {
+  root: string;
+  conflicts: ExtractConflict[];
+  conflictCount: number;
+  fileCount: number;
+  totalSize: number;
+}
+
+export interface ArchiveJobOutcome {
+  jobId: string;
+  output: OutputFile | null;
+  destination: string | null;
+  files: number;
+  skipped: number;
+  warnings: string[];
+  errors: FileError[];
+  cancelled: boolean;
+  elapsedMs: number;
+}
+
+export interface ArchiveTestOutcome {
+  path: string;
+  ok: boolean;
+  checked: number;
+  message: string;
+  cancelled: boolean;
+  elapsedMs: number;
+}
+
+export interface ArchiveFormatInfo {
+  id: string;
+  label: string;
+  extension: string;
+  canCreate: boolean;
+  canPassword: boolean;
+  singleFile: boolean;
+}
+
+export interface PendingDrop {
+  target: "video" | "archives" | "pdf-export";
+  paths: string[];
 }

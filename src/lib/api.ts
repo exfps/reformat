@@ -3,12 +3,17 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
 import type {
+  ArchiveInspection,
+  ArchiveJobOutcome,
+  ArchiveTestOutcome,
+  ExtractPlan,
   ImageProbe,
   ImageSettings,
   JobOutcome,
   JobProgress,
   PdfInfo,
   PdfPreview,
+  VideoProbe,
 } from "./types";
 
 export const isDesktop =
@@ -193,3 +198,146 @@ export function describeError(error: unknown): string {
 }
 
 export type { ImageSettings };
+
+// ---- Video, archive, and PDF export bridges -------------------------------
+
+export async function pickVideoPaths(): Promise<string[]> {
+  requireDesktop();
+  const result = await open({
+    multiple: false,
+    directory: false,
+    title: "Choose a video",
+    filters: [{ name: "Videos", extensions: ["mp4", "mov", "m4v"] }],
+  });
+  if (!result) return [];
+  return Array.isArray(result) ? result : [result];
+}
+
+export async function pickArchiveFiles(): Promise<string[]> {
+  requireDesktop();
+  const result = await open({
+    multiple: true,
+    directory: false,
+    title: "Choose files to archive",
+  });
+  if (!result) return [];
+  return Array.isArray(result) ? result : [result];
+}
+
+export async function pickArchiveFolders(): Promise<string[]> {
+  requireDesktop();
+  const result = await open({
+    multiple: true,
+    directory: true,
+    title: "Choose folders to archive",
+  });
+  if (!result) return [];
+  return Array.isArray(result) ? result : [result];
+}
+
+export async function pickArchiveFile(): Promise<string | null> {
+  requireDesktop();
+  const result = await open({
+    multiple: false,
+    directory: false,
+    title: "Choose an archive",
+    filters: [
+      {
+        name: "Archives",
+        extensions: ["zip", "7z", "tar", "gz", "tgz", "bz2", "tbz2", "xz", "txz", "rar"],
+      },
+    ],
+  });
+  if (!result) return null;
+  return Array.isArray(result) ? result[0] ?? null : result;
+}
+
+export async function probeVideo(path: string): Promise<VideoProbe> {
+  requireDesktop();
+  return invoke<VideoProbe>("probe_video", { path });
+}
+
+export async function createGif(request: {
+  jobId: string;
+  input: string;
+  outputDir: string | null;
+  fileName: string;
+  start: number;
+  duration: number;
+  fps: number;
+  width: number;
+  loop: boolean;
+}): Promise<JobOutcome> {
+  requireDesktop();
+  return invoke<JobOutcome>("create_gif", { request });
+}
+
+export async function archiveInspect(path: string, password: string | null = null): Promise<ArchiveInspection> {
+  requireDesktop();
+  return invoke<ArchiveInspection>("archive_inspect", { request: { path, password } });
+}
+
+export async function planArchiveExtraction(request: {
+  input: string;
+  destination: string | null;
+  password: string | null;
+  selected: string[];
+  folderMode: "smart" | "always" | "never";
+  folderName: string | null;
+  maxTotalMb?: number | null;
+  maxFiles?: number | null;
+}): Promise<ExtractPlan> {
+  requireDesktop();
+  return invoke<ExtractPlan>("plan_archive_extract", { request });
+}
+
+export async function createArchive(request: {
+  jobId: string;
+  sources: string[];
+  outputDir: string | null;
+  fileName: string;
+  format: string;
+  level: string;
+  password: string | null;
+}): Promise<ArchiveJobOutcome> {
+  requireDesktop();
+  return invoke<ArchiveJobOutcome>("create_archive", { request });
+}
+
+export async function extractArchive(request: {
+  jobId: string;
+  input: string;
+  destination: string | null;
+  password: string | null;
+  conflict: "replace" | "rename" | "skip";
+  selected: string[];
+  folderMode: "smart" | "always" | "never";
+  folderName: string | null;
+  maxTotalMb?: number | null;
+  maxFiles?: number | null;
+}): Promise<ArchiveJobOutcome> {
+  requireDesktop();
+  return invoke<ArchiveJobOutcome>("extract_archive", { request });
+}
+
+export async function testArchive(path: string, password: string | null, jobId: string): Promise<ArchiveTestOutcome> {
+  requireDesktop();
+  return invoke<ArchiveTestOutcome>("test_archive", { request: { jobId, path, password } });
+}
+
+export async function exportPdfDocument(request: {
+  jobId: string;
+  input: string;
+  outputDir: string | null;
+  fileName: string;
+  format: "txt" | "docx";
+  ranges: string | null;
+}): Promise<JobOutcome> {
+  requireDesktop();
+  return invoke<JobOutcome>("export_document", { request });
+}
+
+export async function readOutputPreview(path: string): Promise<string> {
+  requireDesktop();
+  return invoke<string>("read_output_preview", { path });
+}

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Reformat",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "identifier": "app.reformat.workbench",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -36,7 +36,7 @@
     ],
     "category": "Productivity",
     "shortDescription": "Private document and media conversion",
-    "longDescription": "Reformat is a local-first workbench for batch image conversion, PDF merging, splitting, organizing, compression, and turning images into PDFs. Nothing leaves your Mac.",
+    "longDescription": "Reformat is a local-first workbench for batch image conversion, PDF merging, splitting, organizing, compression and text export, turning images into PDFs, making GIFs from videos, and creating or unpacking archives. Everything is processed on your Mac.",
     "copyright": "Copyright 2026 Reformat",
     "icon": [
       "icons/32x32.png",
@@ -62,6 +62,9 @@
         }
       },
       "signingIdentity": "-"
-    }
+    },
+    "externalBin": [
+      "binaries/reformat-video"
+    ]
   }
 }

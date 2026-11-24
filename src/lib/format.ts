@@ -195,3 +195,11 @@ export function rangeInputError(input: string, pages: number): string | null {
   }
   return null;
 }
+
+export function isVideoPath(path: string): boolean {
+  return /\.(mp4|mov|m4v)$/i.test(path);
+}
+
+export function isArchivePath(path: string): boolean {
+  return /\.(zip|7z|tar|tar\.gz|tar\.bz2|tar\.xz|tgz|tbz2|txz|gz|bz2|xz|rar)$/i.test(path);
+}

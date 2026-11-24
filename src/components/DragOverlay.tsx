@@ -1,4 +1,4 @@
-import { FileText, Image as ImageIcon } from "lucide-react";
+import { Clapperboard, FileArchive, FileText, Image as ImageIcon } from "lucide-react";
 import { useWorkbench } from "../store/workbench";
 
 export function DragOverlay() {
@@ -8,14 +8,15 @@ export function DragOverlay() {
     <div className="drag-overlay" aria-hidden="true">
       <div className="drag-card">
         <div className="drag-orbit">
-          <span className="drag-icon drag-icon-a"><ImageIcon size={24} /></span>
-          <span className="drag-icon drag-icon-b"><FileText size={24} /></span>
-          <span className="drag-pulse" />
+          <span className="drag-icon drag-icon-a"><ImageIcon size={22} /></span>
+          <span className="drag-icon drag-icon-b"><FileText size={22} /></span>
+          <span className="drag-icon drag-icon-c"><Clapperboard size={22} /></span>
+          <span className="drag-pulse"><FileArchive size={13} /></span>
         </div>
-        <h2>Drop it. It stays local.</h2>
-        <p>Images go to the converter, PDFs to the studio. Nothing leaves this Mac.</p>
+        <h2>Drop your files here</h2>
+        <p>Images, PDFs, videos and archives are welcome. Pick a tool and keep moving.</p>
         <div className="drag-types">
-          <span>JPG</span><span>PNG</span><span>WEBP</span><span>PDF</span>
+          <span>IMAGES</span><span>PDF</span><span>VIDEO</span><span>ARCHIVE</span>
         </div>
       </div>
     </div>

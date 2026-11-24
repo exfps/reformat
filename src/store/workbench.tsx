@@ -30,8 +30,10 @@ import {
 import {
   formatExtension,
   humanBytes,
+  isArchivePath,
   isImagePath,
   isPdfPath,
+  isVideoPath,
   uid,
 } from "../lib/format";
 import { usePersistentState } from "../hooks/usePersistentState";
@@ -43,6 +45,7 @@ import type {
   JobOutcome,
   PdfItem,
   PdfMode,
+  PendingDrop,
   Toast,
   ToastKind,
   View,
@@ -82,6 +85,11 @@ export const PDF_MODE_META: Record<
     label: "Image → PDF",
     eyebrow: "ASSEMBLE",
     description: "Turn a set of images into one tidy document.",
+  },
+  export: {
+    label: "Export PDF",
+    eyebrow: "CONVERT",
+    description: "Turn a text-based PDF into an editable Word file or plain text.",
   },
   compress: {
     label: "Compress",
@@ -160,6 +168,17 @@ interface WorkbenchValue {
 
   activity: ActivityEntry[];
   clearActivity: () => void;
+  recordActivity: (entry: Omit<ActivityEntry, "id" | "timestamp">) => void;
+  pendingDrop: PendingDrop | null;
+  clearPendingDrop: () => void;
+  startExternalJob: (job: {
+    id: string;
+    tool: string;
+    title: string;
+    total: number;
+    view: View;
+  }) => void;
+  finishExternalJob: (id: string) => void;
   chooseImageFolder: () => Promise<void>;
   choosePdfFolder: () => Promise<void>;
 }
@@ -230,6 +249,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const [view, setView] = useState<View>("images");
   const [pdfMode, setPdfMode] = useState<PdfMode>("merge");
   const [dragActive, setDragActive] = useState(false);
+  const [pendingDrop, setPendingDrop] = useState<PendingDrop | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [imageItems, setImageItems] = useState<ImageItem[]>([]);
   const [mergeItems, setMergeItems] = useState<PdfItem[]>([]);
@@ -296,6 +316,36 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     },
     [setActivity],
   );
+
+  const startExternalJob = useCallback(
+    (job: { id: string; tool: string; title: string; total: number; view: View }) => {
+      setActiveJobs((prev) => ({
+        ...prev,
+        [job.id]: {
+          id: job.id,
+          tool: job.tool,
+          title: job.title,
+          total: Math.max(1, job.total),
+          completed: 0,
+          current: null,
+          status: "running",
+          view: job.view,
+          startedAt: Date.now(),
+        },
+      }));
+    },
+    [],
+  );
+
+  const finishExternalJob = useCallback((id: string) => {
+    setActiveJobs((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
+
+  const clearPendingDrop = useCallback(() => setPendingDrop(null), []);
 
   const activeList = useMemo(() => Object.values(activeJobs), [activeJobs]);
   const activeImageJob = activeList.find((job) => job.view === "images") ?? null;
@@ -953,14 +1003,43 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
 
   const handleDropPaths = useCallback(
     async (paths: string[]) => {
+      if (view === "archives" || view === "video") {
+        setPendingDrop({ target: view, paths });
+        return;
+      }
+      if (view === "pdf" && pdfMode === "export") {
+        setPendingDrop({ target: "pdf-export", paths: paths.filter(isPdfPath) });
+        return;
+      }
       const images = paths.filter(isImagePath);
       const pdfs = paths.filter(isPdfPath);
-      const extras = paths.filter((path) => !isImagePath(path) && !isPdfPath(path));
+      const videos = paths.filter(isVideoPath);
+      const archives = paths.filter(isArchivePath);
+      const extras = paths.filter(
+        (path) => !isImagePath(path) && !isPdfPath(path) && !isVideoPath(path) && !isArchivePath(path),
+      );
+      if (!images.length && !pdfs.length && videos.length && !archives.length) {
+        setPendingDrop({ target: "video", paths: videos });
+        setView("video");
+        return;
+      }
+      if (!images.length && !pdfs.length && archives.length && !videos.length) {
+        setPendingDrop({ target: "archives", paths: archives });
+        setView("archives");
+        return;
+      }
       if (extras.length) {
         pushToast({
           kind: "info",
-          title: `${extras.length} unsupported ${extras.length === 1 ? "file" : "files"} ignored`,
-          detail: "Reformat works with JPG, PNG, WebP, and PDF.",
+          title: `${extras.length} ${extras.length === 1 ? "file wasn't" : "files weren't"} added`,
+          detail: "Reformat handles images, PDFs, video and archives. Drop one kind at a time.",
+        });
+      }
+      if (videos.length || archives.length) {
+        pushToast({
+          kind: "info",
+          title: "Video and archives have their own tools",
+          detail: "Open Video to GIF or Archives from the sidebar, then drop the file there.",
         });
       }
       if (images.length) {
@@ -1104,6 +1183,11 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     startOrganizePreview,
     activity,
     clearActivity,
+    recordActivity: addActivity,
+    pendingDrop,
+    clearPendingDrop,
+    startExternalJob,
+    finishExternalJob,
     chooseImageFolder,
     choosePdfFolder,
   };

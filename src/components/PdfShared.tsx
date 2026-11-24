@@ -17,11 +17,9 @@ import { ShieldCheck } from "lucide-react";
 export function InspectorHeader({
   eyebrow,
   title,
-  number,
 }: {
   eyebrow: string;
   title: string;
-  number: string;
 }) {
   return (
     <div className="inspector-head">
@@ -29,7 +27,6 @@ export function InspectorHeader({
         <div className="eyebrow">{eyebrow}</div>
         <h2>{title}</h2>
       </div>
-      <span className="recipe-number">{number}</span>
     </div>
   );
 }
@@ -114,7 +111,7 @@ export function PdfInspectorFooter({
     <div className="inspector-foot">
       {isThisJob ? <PdfBusyFooter tool={tool} /> : children}
       {!isThisJob && outcome && <LastOutcomeCard outcome={outcome} compact />}
-      <PrivacyNote>Nothing is uploaded. PDFs are rebuilt in a temp file before they land.</PrivacyNote>
+      <PrivacyNote>PDFs are rebuilt in a temporary file before your copy is written.</PrivacyNote>
     </div>
   );
 }
@@ -212,8 +209,8 @@ export function PdfHelpCard({ mode }: { mode: string }) {
   return (
     <div className="pdf-helper">
       <div className="pdf-helper-head">
-        <span className="pdf-helper-kicker">A LOCAL WORKFLOW</span>
-        <strong>Three steps. Nothing leaves this Mac.</strong>
+        <span className="pdf-helper-kicker">A SIMPLE FLOW</span>
+        <strong>Three quick steps.</strong>
         <ShieldCheck size={14} />
       </div>
       <div className="pdf-helper-steps">

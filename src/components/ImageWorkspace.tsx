@@ -6,9 +6,6 @@ import {
   GripVertical,
   Image as ImageIcon,
   LoaderCircle,
-  RotateCcw,
-  ShieldCheck,
-  Sparkles,
   X,
 } from "lucide-react";
 import { useWorkbench } from "../store/workbench";
@@ -19,6 +16,7 @@ import {
   resolveTargetDimensions,
 } from "../lib/format";
 import type { ImageItem, ImagePreset, ResizeMode } from "../lib/types";
+import { ToolHeader } from "./ToolHeader";
 import {
   BusyFooter,
   DestinationPicker,
@@ -301,88 +299,102 @@ function ResizeControls() {
         ))}
       </div>
 
-      <div className={`size-row ${noResize ? "is-disabled" : ""}`}>
-        <label className="number-field">
-          <span>Width</span>
-          <div>
-            <input
-              type="number"
-              min={1}
-              max={32000}
-              value={imageSettings.width ?? ""}
-              placeholder="Auto"
-              disabled={isImageBusy || noResize}
-              onChange={(event) => {
-                const value = event.target.value === "" ? null : Number(event.target.value);
-                updateImageSettings({ width: value });
-              }}
-            />
-            <span className="unit">px</span>
+      {imageSettings.presetId === "custom" ? (
+        <>
+          <div className={`size-row ${noResize ? "is-disabled" : ""}`}>
+            <label className="number-field">
+              <span>Width</span>
+              <div>
+                <input
+                  type="number"
+                  min={1}
+                  max={32000}
+                  value={imageSettings.width ?? ""}
+                  placeholder="Auto"
+                  disabled={isImageBusy || noResize}
+                  onChange={(event) => {
+                    const value = event.target.value === "" ? null : Number(event.target.value);
+                    updateImageSettings({ width: value });
+                  }}
+                />
+                <span className="unit">px</span>
+              </div>
+            </label>
+            <span className="size-times">×</span>
+            <label className="number-field">
+              <span>Height</span>
+              <div>
+                <input
+                  type="number"
+                  min={1}
+                  max={32000}
+                  value={imageSettings.height ?? ""}
+                  placeholder="Auto"
+                  disabled={isImageBusy || noResize}
+                  onChange={(event) => {
+                    const value = event.target.value === "" ? null : Number(event.target.value);
+                    updateImageSettings({ height: value });
+                  }}
+                />
+                <span className="unit">px</span>
+              </div>
+            </label>
           </div>
-        </label>
-        <span className="size-times">×</span>
-        <label className="number-field">
-          <span>Height</span>
-          <div>
-            <input
-              type="number"
-              min={1}
-              max={32000}
-              value={imageSettings.height ?? ""}
-              placeholder="Auto"
-              disabled={isImageBusy || noResize}
-              onChange={(event) => {
-                const value = event.target.value === "" ? null : Number(event.target.value);
-                updateImageSettings({ height: value });
-              }}
-            />
-            <span className="unit">px</span>
+
+          <div className="segmented mini">
+            {[
+              { id: "fit" as const, label: "Fit" },
+              { id: "cover" as const, label: "Fill" },
+              { id: "stretch" as const, label: "Stretch" },
+            ].map((mode) => (
+              <button
+                key={mode.id}
+                className={activeMode === mode.id ? "is-active" : ""}
+                onClick={() => setMode(mode.id)}
+                disabled={isImageBusy || noResize}
+              >
+                {mode.label}
+              </button>
+            ))}
           </div>
-        </label>
-      </div>
-
-      <div className="segmented mini">
-        {[
-          { id: "fit" as const, label: "Fit" },
-          { id: "cover" as const, label: "Fill" },
-          { id: "stretch" as const, label: "Stretch" },
-        ].map((mode) => (
-          <button
-            key={mode.id}
-            className={activeMode === mode.id ? "is-active" : ""}
-            onClick={() => setMode(mode.id)}
-            disabled={isImageBusy || noResize}
-          >
-            {mode.label}
-          </button>
-        ))}
-      </div>
-      <p className="field-note">
-        {activeMode === "cover"
-          ? "Fills the frame and crops the overflow from the centre."
-          : activeMode === "stretch"
-            ? "Uses the exact box, even if that changes proportions."
-            : activeMode === "none"
-              ? "Keeps the original pixel dimensions."
-              : "Fits inside the box without cropping."}
-      </p>
-
-      <label className={`toggle-row ${noResize ? "is-disabled" : ""}`}>
-        <span>
-          <strong>Allow upscaling</strong>
-          <span className="field-note">Enlarge small sources instead of clamping to their size.</span>
-        </span>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={imageSettings.allowUpscale}
-          className={`switch ${imageSettings.allowUpscale ? "is-on" : ""}`}
-          onClick={() => updateImageSettings({ allowUpscale: !imageSettings.allowUpscale })}
-          disabled={isImageBusy || noResize}
-        >
-          <span />
-        </button>
-      </label>
+          <p className="field-note">
+            {activeMode === "cover"
+              ? "Fills the frame and crops the overflow from the centre."
+              : activeMode === "stretch"
+                ? "Uses the exact box, even if that changes proportions."
+                : activeMode === "none"
+                  ? "Keeps the original pixel dimensions."
+                  : "Fits inside the box without cropping."}
+          </p>
+          <label className={`toggle-row ${noResize ? "is-disabled" : ""}`}>
+            <span>
+              <strong>Allow upscaling</strong>
+              <span className="field-note">Enlarge small sources instead of clamping to their size.</span>
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={imageSettings.allowUpscale}
+              className={`switch ${imageSettings.allowUpscale ? "is-on" : ""}`}
+              onClick={() => updateImageSettings({ allowUpscale: !imageSettings.allowUpscale })}
+              disabled={isImageBusy || noResize}
+            >
+              <span />
+            </button>
+          </label>
+        </>
+      ) : (
+        <p className="preset-explainer">
+          {imageSettings.presetId === "original"
+            ? "Keeps the original pixel dimensions. Only the format and quality change."
+            : imageSettings.presetId === "square"
+              ? "Makes a 1080 × 1080 square, cropping the edges to fill it."
+              : imageSettings.presetId === "thumb"
+                ? "Fits inside 480 × 480 without cropping or upscaling."
+                : "Fits inside a 1600 × 1600 box. Great for the web."}
+          <span>Choose “Custom” to set exact pixels.</span>
+        </p>
+      )}
     </div>
   );
 }
@@ -416,10 +428,9 @@ function OutputRecipe() {
     <div className="card inspector-card">
       <div className="inspector-head">
         <div>
-          <div className="eyebrow">OUTPUT RECIPE</div>
-          <h2>Set the rules <span>once.</span></h2>
+          <div className="eyebrow">IMAGE SETTINGS</div>
+          <h2>How should they come out?</h2>
         </div>
-        <span className="recipe-number">01</span>
       </div>
 
       <div className="inspector-body">
@@ -505,75 +516,41 @@ function OutputRecipe() {
             )}
           </>
         )}
-        <PrivacyNote>Everything happens on this Mac. Originals are never modified.</PrivacyNote>
+        <PrivacyNote>Your originals stay untouched.</PrivacyNote>
       </div>
     </div>
   );
 }
 
-function StarterNotes() {
-  return (
-    <div className="starter-notes">
-      <div className="starter">
-        <span className="starter-icon"><ShieldCheck size={16} /></span>
-        <div><strong>Private by default</strong><span>No uploads, ever. The queue runs entirely on your machine.</span></div>
-      </div>
-      <div className="starter">
-        <span className="starter-icon"><Sparkles size={16} /></span>
-        <div><strong>Originals untouched</strong><span>Every output lands in a new file. Nothing is overwritten.</span></div>
-      </div>
-      <div className="starter">
-        <span className="starter-icon"><RotateCcw size={16} /></span>
-        <div><strong>Safe to retry</strong><span>A damaged file fails on its own without stopping the batch.</span></div>
-      </div>
-    </div>
-  );
-}
 
 export function ImageWorkspace() {
   const { imageItems, chooseImages, isImageBusy } = useWorkbench();
   const hasItems = imageItems.length > 0;
   return (
     <div className="view-scroll fixed-page">
-      <div className="page image-page">
-        <header className="page-hero">
-          <div className="hero-copy">
-            <div className="eyebrow-row">
-              <span className="eyebrow">BATCH CONVERTER</span>
-              <span className="hero-rule" />
-              <span className="hero-index">01 / 03</span>
-            </div>
-            <h1>
-              {isImageBusy ? (
-                <>Working through <em>the batch.</em></>
-              ) : (
-                <>Make every image <em>fit.</em></>
-              )}
-            </h1>
-            <p>
-              Convert, resize, and compress JPG, PNG, and WebP in one quiet pass.
-              Originals stay exactly as they were.
-            </p>
-          </div>
-          <div className="hero-seal" aria-hidden="true">
-            <span className="seal-ring" />
-            <ShieldCheck size={24} strokeWidth={1.4} />
-            <span className="seal-text">NO<br />UPLOADS</span>
-            <span className="seal-star">✦</span>
-          </div>
-        </header>
-
-        <div className="image-layout">
-          <div className="primary-stack">
+      <div className="page tool-page image-page">
+        <ToolHeader
+          icon={ImageIcon}
+          title="Convert images"
+          description="Resize, compress, and change format for a whole batch with one recipe."
+          accent="green"
+        />
+        <div className="tool-layout">
+          <div className="tool-primary">
             {hasItems ? (
               <DropZone kind="image" compact onBrowse={() => void chooseImages()} disabled={isImageBusy} />
             ) : (
-              <DropZone kind="image" onBrowse={() => void chooseImages()} disabled={isImageBusy} />
+              <DropZone
+                kind="image"
+                grow
+                onBrowse={() => void chooseImages()}
+                customTitle="Drop your photos here"
+                customSubtitle="JPG, PNG, or WebP. Pick a recipe on the right and let the whole batch run."
+              />
             )}
             <QueueCard />
-            {!hasItems && <StarterNotes />}
           </div>
-          <aside className="inspector">
+          <aside className="tool-aside">
             <OutputRecipe />
           </aside>
         </div>

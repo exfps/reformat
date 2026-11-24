@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Check,
   CircleCheck,
+  FileOutput,
   FileText,
   Image as ImageIcon,
   ImagePlus,
@@ -15,7 +16,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { useWorkbench, PDF_MODE_META } from "../store/workbench";
+import { useWorkbench } from "../store/workbench";
 import { humanBytes, rangeInputError } from "../lib/format";
 import { usePersistentState } from "../hooks/usePersistentState";
 import type { PdfMode } from "../lib/types";
@@ -35,12 +36,15 @@ import {
   SplitPattern,
 } from "./PdfShared";
 import { PdfOrganizePanel } from "./PdfOrganizePanel";
+import { PdfExportPanel } from "./PdfExportPanel";
+import { ToolHeader } from "./ToolHeader";
 
 const MODE_TABS: { id: PdfMode; label: string; hint: string; icon: typeof Layers }[] = [
   { id: "merge", label: "Merge", hint: "Join documents", icon: Layers },
   { id: "split", label: "Split", hint: "Extract pages", icon: Scissors },
   { id: "organize", label: "Organize", hint: "Reorder pages", icon: LayoutGrid },
-  { id: "topdf", label: "Image → PDF", hint: "Assemble photos", icon: ImagePlus },
+  { id: "topdf", label: "Images to PDF", hint: "Assemble photos", icon: ImagePlus },
+  { id: "export", label: "Export", hint: "Word or text", icon: FileOutput },
   { id: "compress", label: "Compress", hint: "Clean up a file", icon: Minimize2 },
 ];
 
@@ -165,7 +169,7 @@ function MergePanel() {
 
       <aside className="inspector">
         <div className="card inspector-card">
-          <InspectorHeader eyebrow="MERGE RECIPE" title="One coherent file." number="01" />
+          <InspectorHeader eyebrow="OUTPUT" title="One coherent file." />
           <div className="inspector-body">
             <DestinationPicker
               value={pdfOutputDir}
@@ -336,7 +340,7 @@ function SplitPanel() {
 
       <aside className="inspector">
         <div className="card inspector-card">
-          <InspectorHeader eyebrow="EXTRACT PAGES" title="Just the pages you need." number="02" />
+          <InspectorHeader eyebrow="OUTPUT" title="Just the pages you need." />
           <div className="inspector-body">
             <DestinationPicker
               value={pdfOutputDir}
@@ -505,7 +509,7 @@ function ImageToPdfPanel() {
 
       <aside className="inspector">
         <div className="card inspector-card">
-          <InspectorHeader eyebrow="ASSEMBLE" title="A PDF from your images." number="04" />
+          <InspectorHeader eyebrow="OUTPUT" title="A PDF from your images." />
           <div className="inspector-body">
             <DestinationPicker
               value={pdfOutputDir}
@@ -603,7 +607,7 @@ function CompressPanel() {
 
       <aside className="inspector">
         <div className="card inspector-card">
-          <InspectorHeader eyebrow="CLEAN UP" title="Lighter, not lossy." number="05" />
+          <InspectorHeader eyebrow="OUTPUT" title="Lighter, not lossy." />
           <div className="inspector-body">
             <DestinationPicker
               value={pdfOutputDir}
@@ -651,53 +655,31 @@ function CompressPanel() {
 }
 
 export function PdfWorkspace() {
-  const { pdfMode, activePdfJob } = useWorkbench();
-  const meta = PDF_MODE_META[pdfMode];
+  const { pdfMode } = useWorkbench();
   const panel = useMemo(() => {
     if (pdfMode === "merge") return <MergePanel />;
     if (pdfMode === "split") return <SplitPanel />;
     if (pdfMode === "organize") return <PdfOrganizePanel />;
     if (pdfMode === "topdf") return <ImageToPdfPanel />;
+    if (pdfMode === "export") return null;
     return <CompressPanel />;
   }, [pdfMode]);
 
   return (
     <div className="view-scroll fixed-page">
-      <div className="page pdf-page">
-        <header className="page-hero pdf-hero">
-          <div className="hero-copy">
-            <div className="eyebrow-row">
-              <span className="eyebrow">PDF STUDIO</span>
-              <span className="hero-rule" />
-              <span className="hero-index">02 / 03</span>
-            </div>
-            <h1>Pages, in <em>your</em> order.</h1>
-            <p>
-              Merge, split, rearrange, and clean up documents without sending a single page
-              off your Mac. The originals stay pristine.
-            </p>
-          </div>
-          <div className="pdf-stamp" aria-hidden="true">
-            <span className="stamp-file stamp-file-a"><FileText size={20} /></span>
-            <span className="stamp-file stamp-file-b"><FileText size={20} /></span>
-            <span className="stamp-file stamp-file-c"><Check size={20} /></span>
-            <span className="stamp-caption">LOCAL<br />FINISH</span>
-          </div>
-        </header>
+      <div className="page tool-page pdf-page">
+        <ToolHeader
+          icon={FileText}
+          title="Work with PDFs"
+          description="Merge, split, rearrange, and export pages with a few friendly tools."
+          accent="coral"
+        />
 
         <PdfModeTabs />
-        <div className="pdf-mode-intro">
-          <div>
-            <span className="eyebrow">{meta.eyebrow}</span>
-            <strong>{meta.description}</strong>
-          </div>
-          {activePdfJob && (
-            <span className="mode-running">
-              <span className="status-dot" /> {activePdfJob.title} running
-            </span>
-          )}
+        <div className="pdf-panel-slot" hidden={pdfMode !== "export"}>
+          <PdfExportPanel />
         </div>
-        {panel}
+        {pdfMode !== "export" && panel}
       </div>
     </div>
   );
